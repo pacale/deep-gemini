@@ -1,0 +1,114 @@
+<!-- templates/index.html -->
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeepSeek-Gemini Conversation</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Conversazione DeepSeek-Gemini</h1>
+            <div class="controls">
+                <button id="saveButton">Salva PDF ora</button>
+            </div>
+        </header>
+        
+        <div class="main-content">
+            <div class="conversation">
+                <div id="messages"></div>
+            </div>
+            
+            <div class="sidebar">
+                <h2>PDF Salvati</h2>
+                <div class="pdf-list">
+                    {% if pdf_files %}
+                        {% for pdf in pdf_files %}
+                            <div class="pdf-item">
+                                <a href="/pdfs/{{ pdf }}" target="_blank">{{ pdf }}</a>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <p>Nessun PDF disponibile</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const messagesContainer = document.getElementById('messages');
+        const saveButton = document.getElementById('saveButton');
+        const pdfList = document.querySelector('.pdf-list');
+        
+        // Connessione WebSocket
+        const ws = new WebSocket(`ws://${window.location.host}/ws`);
+        
+        ws.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            
+            if (data.type === 'message') {
+                // Aggiunge un nuovo messaggio
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${data.role}`;
+                
+                const header = document.createElement('div');
+                header.className = 'message-header';
+                header.textContent = data.role === 'deepseek' ? 'DeepSeek' : 'Gemini';
+                
+                const content = document.createElement('div');
+                content.className = 'message-content';
+                content.textContent = data.content;
+                
+                messageDiv.appendChild(header);
+                messageDiv.appendChild(content);
+                messagesContainer.appendChild(messageDiv);
+                
+                // Scroll fino all'ultimo messaggio
+                messageDiv.scrollIntoView({ behavior: 'smooth' });
+            } 
+            else if (data.type === 'pdf_saved') {
+                // Aggiunge un nuovo PDF alla lista
+                const pdfItem = document.createElement('div');
+                pdfItem.className = 'pdf-item';
+                
+                const link = document.createElement('a');
+                link.href = `/pdfs/${data.filename}`;
+                link.target = '_blank';
+                link.textContent = data.filename;
+                
+                pdfItem.appendChild(link);
+                
+                // Aggiungi all'inizio della lista
+                if (pdfList.firstChild) {
+                    pdfList.insertBefore(pdfItem, pdfList.firstChild);
+                } else {
+                    pdfList.appendChild(pdfItem);
+                }
+                
+                // Notifica all'utente
+                alert(`Conversazione salvata in ${data.filename}`);
+            }
+        };
+        
+        saveButton.addEventListener('click', function() {
+            ws.send(JSON.stringify({ type: 'save_now' }));
+        });
+        
+        // Gestione errori WebSocket
+        ws.onerror = function(error) {
+            console.error('WebSocket Error:', error);
+        };
+        
+        ws.onclose = function() {
+            console.log('WebSocket connection closed');
+            setTimeout(() => {
+                alert('Connessione persa. La pagina verrà ricaricata.');
+                window.location.reload();
+            }, 3000);
+        };
+    </script>
+</body>
+</html>
